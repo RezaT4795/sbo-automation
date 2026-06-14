@@ -144,6 +144,16 @@ should_install() {
   esac
 }
 
+commit_update() {
+  message="development/$PRGNAM-$CHANNEL: Updated for version $LATEST_VERSION."
+
+  if [ "${COMMIT_SIGNING:-true}" = true ]; then
+    git -C "$REPO_ROOT" commit -S --signoff -m "$message"
+  else
+    git -C "$REPO_ROOT" commit --signoff -m "$message"
+  fi
+}
+
 create_pr_and_comment() {
   command -v gh >/dev/null 2>&1 \
     || die "GitHub CLI is not installed or not in PATH: gh"
@@ -254,7 +264,7 @@ TAG="${TAG:-_SBo}"
 PKGTYPE="${PKGTYPE:-tgz}"
 OUTPUT="${OUTPUT:-/tmp}"
 
-REPO_ROOT="/home/$USER/Projects/slackbuilds"
+REPO_ROOT="${REPO_ROOT:-/home/$USER/Projects/slackbuilds}"
 SLACKBUILD_PATH="$REPO_ROOT/development/$PRGNAM-$CHANNEL"
 SLACKBUILD_FILE="$SLACKBUILD_PATH/$PRGNAM-$CHANNEL.SlackBuild"
 INFO_FILE="$SLACKBUILD_PATH/$PRGNAM-$CHANNEL.info"
@@ -391,7 +401,7 @@ if [ "$COMMIT" = true ]; then
   if git -C "$REPO_ROOT" diff --cached --quiet; then
     echo "No Git changes to commit."
   else
-    git -C "$REPO_ROOT" commit -S --signoff -m "development/$PRGNAM-$CHANNEL: Updated for version $LATEST_VERSION."
+    commit_update
 
     if [ "$PUSH" = true ]; then
       git -C "$REPO_ROOT" push --set-upstream origin "$BRANCH"
