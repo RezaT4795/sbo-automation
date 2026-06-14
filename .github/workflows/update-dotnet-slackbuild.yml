@@ -1,0 +1,113 @@
+name: Update .NET SlackBuild
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "SlackBuild package"
+        required: true
+        default: "dotnet-runtime"
+        type: choice
+        options:
+          - dotnet-runtime
+          - aspnetcore-runtime
+          - dotnet-sdk
+
+      channel:
+        description: ".NET channel"
+        required: true
+        default: "8.0"
+        type: choice
+        options:
+          - "8.0"
+          - "9.0"
+          - "10.0"
+
+      mode:
+        description: "Automation mode"
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - full
+          - no-pr
+          - no-push
+          - no-commit
+
+jobs:
+  update:
+    name: Update SlackBuild
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out automation repo
+        uses: actions/checkout@v4
+        with:
+          path: sbo-automation
+
+      - name: Check out SlackBuilds fork
+        uses: actions/checkout@v4
+        with:
+          repository: RezaT4795/slackbuilds
+          token: ${{ secrets.SBO_AUTOMATION_TOKEN }}
+          path: slackbuilds
+          fetch-depth: 0
+
+      - name: Install required tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Configure Git identity
+        run: |
+          git -C "$GITHUB_WORKSPACE/slackbuilds" config user.name "Reza Talebi"
+          git -C "$GITHUB_WORKSPACE/slackbuilds" config user.email "reza.talebi.73@outlook.com"
+
+      - name: Sync fork master with upstream master
+        run: |
+          cd "$GITHUB_WORKSPACE/slackbuilds"
+
+          git remote add upstream https://github.com/SlackBuildsOrg/slackbuilds.git || true
+          git fetch upstream master
+
+          git checkout master
+          git reset --hard upstream/master
+          git push origin master
+
+      - name: Run update script
+        env:
+          GH_TOKEN: ${{ secrets.SBO_AUTOMATION_TOKEN }}
+          REPO_ROOT: ${{ github.workspace }}/slackbuilds
+          COMMIT_SIGNING: "false"
+          PR_HEAD_OWNER: RezaT4795
+          PR_BASE_REPO: SlackBuildsOrg/slackbuilds
+          PR_BASE_BRANCH: master
+        run: |
+          cd "$GITHUB_WORKSPACE/sbo-automation"
+
+          chmod +x scripts/update-dotnet-slackbuild.sh
+
+          EXTRA_ARGS="--no-install"
+
+          case "${{ inputs.mode }}" in
+            full)
+              ;;
+            no-pr)
+              EXTRA_ARGS="$EXTRA_ARGS --no-pr"
+              ;;
+            no-push)
+              EXTRA_ARGS="$EXTRA_ARGS --no-push"
+              ;;
+            no-commit)
+              EXTRA_ARGS="$EXTRA_ARGS --no-commit"
+              ;;
+            *)
+              echo "Unknown mode: ${{ inputs.mode }}"
+              exit 1
+              ;;
+          esac
+
+          scripts/update-dotnet-slackbuild.sh \
+            "${{ inputs.package }}" \
+            "${{ inputs.channel }}" \
+            $EXTRA_ARGS
